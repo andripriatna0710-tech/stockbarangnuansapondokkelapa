@@ -6,132 +6,430 @@
     <title>K-STOCK Nuansa Pondok Kelapa - Enterprise Suite</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        @keyframes blink { 0%, 100% { background-color: white; } 50% { background-color: #fef9c3; border: 2px solid #facc15; } }
-        .blink-critical { animation: blink 1.2s infinite; }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; color: #0F172A; }
+        .spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        .modal-animate { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .building-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.05); }
+        @keyframes blink { 0%, 100% { background-color: #ffffff; } 50% { background-color: #fffbeb; border-color: #fbbf24; } }
+        .blink-alert { animation: blink 1s infinite; border-width: 2px !important; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        const App = () => {
-            const [activeBuilding, setActiveBuilding] = useState("Semua");
-            
-            // CONTOH DATA (Pastikan kategori ini ada di inputan Bapak nanti)
-            const [inventory] = useState([
-                { id: 1, name: "Material Defect Test", building: "Menara Swasana", category: "Material Defect", stok: 2, minStok: 5 },
-                { id: 2, name: "Chemical STP Test", building: "Menara Samawa", category: "Chemical STP", stok: 10, minStok: 5 },
-                { id: 3, name: "Chemical Pool Test", building: "Menara Swasana", category: "Chemical Kolam Renang", stok: 1, minStok: 5 }
-            ]);
+        const firebaseConfig = {
+            apiKey: "AIzaSyAzYbEMh0n3tXduIeWg5qJbL9-bSyvy6Cg",
+            authDomain: "kartu-stock-nuansapondokkelapa.firebaseapp.com",
+            projectId: "kartu-stock-nuansapondokkelapa",
+            storageBucket: "kartu-stock-nuansapondokkelapa.firebasestorage.app",
+            messagingSenderId: "97966076438",
+            appId: "1:97966076438:web:f98ac6e1d8f101e3037b37"
+        };
 
-            const buildings = ["Menara Swasana", "Menara Samawa", "Galery Marketing"];
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+        const auth = firebase.auth();
 
-            // LOGIKA HITUNG DASHBOARD (Pikir Lebih Dalam)
-            const stats = useMemo(() => {
-                const filtered = activeBuilding === "Semua" ? inventory : inventory.filter(i => i.building === activeBuilding);
-                return {
-                    total: filtered.length,
-                    defect: filtered.filter(i => i.category === "Material Defect").length,
-                    stp: filtered.filter(i => i.category === "Chemical STP").length,
-                    pool: filtered.filter(i => i.category === "Chemical Kolam Renang").length,
-                    critical: filtered.filter(i => i.stok <= i.minStok).length
-                };
-            }, [activeBuilding, inventory]);
+        const APP_ID = "kartu-stock-nuansapondokkelapa";
+        const ITEMS_PATH = db.collection("artifacts").doc(APP_ID).collection("public").doc("data").collection("items");
+        const TRANS_PATH = db.collection("artifacts").doc(APP_ID).collection("public").doc("data").collection("transactions");
+        const USERS_PATH = db.collection("artifacts").doc(APP_ID).collection("public").doc("data").collection("users");
 
+        const BUILDINGS = ["Menara Swasana", "Menara Samawa", "Galery Marketing"];
+        const CATEGORIES = ["Umum", "Material Defect", "Chemical Kolam Renang", "Chemical STP"];
+
+        // --- COMPONENTS ---
+
+        function NavItem({ active, icon, label, onClick }) {
             return (
-                <div className="flex min-h-screen">
-                    {/* Sidebar Navigasi */}
-                    <div className="w-72 bg-white border-r p-8 hidden lg:block">
-                        <h1 className="font-black text-blue-700 text-xl mb-12">K-STOCK NUANSA PK</h1>
-                        <nav className="space-y-4">
-                            <div className="p-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center gap-3 shadow-lg shadow-blue-200 cursor-pointer">
-                                <i data-lucide="layout-dashboard"></i> Dashboard
-                            </div>
-                            <div className="p-4 text-slate-400 font-bold flex items-center gap-3 hover:bg-slate-50 rounded-2xl cursor-pointer">
-                                <i data-lucide="package"></i> Inventaris
-                            </div>
-                        </nav>
-                    </div>
+                <button onClick={onClick} className={`w-full flex items-center gap-5 px-6 py-5 rounded-2xl transition-all font-black text-sm tracking-tight ${active ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    <i data-lucide={icon} className="w-5 h-5"></i> <span>{label}</span>
+                </button>
+            );
+        }
 
-                    {/* Konten Utama */}
-                    <main className="flex-1 p-8">
-                        <div className="flex justify-between items-center mb-10">
-                            <h2 className="text-4xl font-black text-slate-800">Dashboard <span className="text-slate-300 text-lg block font-medium">Supervisor Teknik</span></h2>
-                            <button className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold shadow-xl flex items-center gap-2 hover:scale-105 transition-transform">
-                                <i data-lucide="plus"></i> TAMBAH BARANG
-                            </button>
+        function StatCard({ title, value, icon, color, subtitle, highlight, isSmall }) {
+            if (isSmall) {
+                return (
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">{title}</p>
+                        <div className="flex items-center justify-between">
+                            <span className={`text-2xl font-black ${color}`}>{value}</span>
+                            <i data-lucide={icon} className={`w-4 h-4 ${color} opacity-20`}></i>
                         </div>
+                    </div>
+                );
+            }
+            return (
+                <div className={`p-10 rounded-[3rem] border transition-all relative overflow-hidden ${highlight ? 'blink-alert shadow-2xl scale-105' : 'bg-white border-slate-100 shadow-sm'}`}>
+                    <div className="bg-slate-50 p-4 w-fit rounded-2xl mb-8 border border-white shadow-sm"><i data-lucide={icon} className={color}></i></div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">{title}</p>
+                    <p className={`text-5xl font-black tracking-tighter leading-none ${highlight ? 'text-amber-600' : 'text-slate-900'}`}>{value}</p>
+                    <p className="text-[9px] text-slate-500 font-extrabold mt-6 uppercase tracking-widest">{subtitle}</p>
+                </div>
+            );
+        }
 
-                        {/* Pilih Gedung */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                            {buildings.map(b => (
-                                <button 
-                                    key={b}
-                                    onClick={() => setActiveBuilding(b)}
-                                    className={`p-8 rounded-[32px] border transition-all text-center ${activeBuilding === b ? 'bg-white border-blue-500 shadow-2xl scale-105' : 'bg-white border-transparent shadow-sm'}`}
-                                >
-                                    <div className="bg-slate-100 w-14 h-14 rounded-2xl flex items-center justify-center mb-4 mx-auto">
-                                        <i data-lucide="building-2" className="text-slate-600"></i>
-                                    </div>
-                                    <h4 className="font-black uppercase text-sm">{b}</h4>
-                                    <p className="text-[10px] text-slate-400 mt-1">KLIK UNTUK TRANSAKSI</p>
+        function DashboardView({ items, transactions, onBuildingClick }) {
+            const stats = {
+                total: (items || []).length,
+                low: (items || []).filter(i => (i.currentStock || 0) <= (i.minStock || 5)).length,
+                defect: (items || []).filter(i => i.category === "Material Defect").length,
+                stp: (items || []).filter(i => i.category === "Chemical STP").length,
+                pool: (items || []).filter(i => i.category === "Chemical Kolam Renang").length
+            };
+            
+            return (
+                <div className="space-y-12">
+                    <div className="space-y-6">
+                        <h3 className="text-xl font-black text-slate-900 flex items-center gap-3"><i data-lucide="building"></i> Area Kerja</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {BUILDINGS.map(b => (
+                                <button key={b} onClick={() => onBuildingClick(b)} className="building-card bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center text-center transition-all group">
+                                    <div className="bg-blue-50 p-4 rounded-2xl mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all"><i data-lucide="building-2" className="w-6 h-6"></i></div>
+                                    <h4 className="font-black text-lg text-slate-900 uppercase tracking-tight">{b}</h4>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pilih Gedung</p>
                                 </button>
                             ))}
                         </div>
+                    </div>
 
-                        {/* Statistik & Ringkasan */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* Kartu Total */}
-                            <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-50">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Suku Cadang</p>
-                                <h3 className="text-6xl font-black text-slate-800 mb-2">{stats.total}</h3>
-                                <p className="text-xs font-bold text-slate-400 italic">UNIT TERDATA</p>
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <StatCard title="Total Suku Cadang" value={stats.total} icon="package" color="text-blue-600" subtitle="Unit terdata di sistem" />
+                        <StatCard title="Peringatan Stok" value={stats.low} icon="alert-octagon" color="text-amber-500" subtitle="Butuh restock segera" highlight={stats.low > 0} />
+                    </div>
 
-                            {/* Kartu Stok Kritis (Blinking) */}
-                            <div className={`p-10 rounded-[48px] border transition-all ${stats.critical > 0 ? 'blink-critical shadow-amber-100 shadow-2xl' : 'bg-white border-slate-50 shadow-sm'}`}>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Stok Kritis</p>
-                                <h3 className={`text-6xl font-black ${stats.critical > 0 ? 'text-amber-500' : 'text-slate-800'}`}>{stats.critical}</h3>
-                                <p className="text-xs font-bold text-amber-600 mt-2 tracking-tighter uppercase">Butuh Restock Segera</p>
-                            </div>
-
-                            {/* RINGKASAN KATEGORI (TAMBAHAN CUSTOM) */}
-                            <div className="bg-white p-8 rounded-[48px] border border-slate-100 shadow-sm">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Ringkasan Khusus</p>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center bg-red-50 p-4 rounded-3xl">
-                                        <span className="text-sm font-bold text-red-700">Material Defect</span>
-                                        <span className="text-2xl font-black text-red-700">{stats.defect}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center bg-emerald-50 p-4 rounded-3xl">
-                                        <span className="text-sm font-bold text-emerald-700">Chemical STP</span>
-                                        <span className="text-2xl font-black text-emerald-700">{stats.stp}</span>
-                                    </div>
-                                    {activeBuilding !== "Menara Samawa" && (
-                                        <div className="flex justify-between items-center bg-sky-50 p-4 rounded-3xl">
-                                            <span className="text-sm font-bold text-sky-700">Chemical Pool</span>
-                                            <span className="text-2xl font-black text-sky-700">{stats.pool}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                    <div className="space-y-6">
+                        <h3 className="text-xl font-black text-slate-900 flex items-center gap-3"><i data-lucide="layers"></i> Ringkasan Khusus</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <StatCard isSmall title="Material Defect" value={stats.defect} icon="component" color="text-rose-600" />
+                            <StatCard isSmall title="Chemical STP" value={stats.stp} icon="flask-conical" color="text-emerald-600" />
+                            <StatCard isSmall title="Chemical Pool" value={stats.pool} icon="waves" color="text-sky-600" />
                         </div>
-                    </main>
+                    </div>
                 </div>
             );
-        };
+        }
+
+        function InventoryView({ items, searchQuery, setSearchQuery, filterBuilding, setFilterBuilding, onAction }) {
+            return (
+                <div className="space-y-10">
+                    <div className="flex flex-col lg:flex-row gap-4">
+                        <div className="relative flex-1 group">
+                            <i data-lucide="search" className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-all"></i>
+                            <input type="text" placeholder="Cari barang..." className="w-full pl-16 pr-6 py-5 bg-white border border-slate-200 rounded-3xl focus:ring-8 focus:ring-blue-50 outline-none font-bold shadow-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                        </div>
+                        <select value={filterBuilding} onChange={(e) => setFilterBuilding(e.target.value)} className="bg-white border border-slate-200 px-8 py-5 rounded-3xl font-bold outline-none shadow-sm cursor-pointer">
+                            <option value="All">Semua Gedung</option>
+                            {BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                        {items.map(item => (
+                            <div key={item.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 hover:shadow-xl transition-all relative overflow-hidden group">
+                                {item.currentStock <= item.minStock && <div className="absolute top-6 right-6 bg-rose-500 text-white text-[8px] font-black px-3 py-1.5 rounded-full animate-pulse uppercase tracking-widest">Restock</div>}
+                                <div className="mb-6">
+                                    <div className="text-[8px] font-black uppercase text-blue-600 mb-2 bg-blue-50 px-3 py-1 rounded-lg w-fit tracking-widest">{item.building}</div>
+                                    <h3 className="text-xl font-black text-slate-900 leading-tight group-hover:text-blue-600 transition-colors uppercase">{item.name}</h3>
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <span className="px-3 py-1 bg-slate-100 text-slate-500 text-[9px] font-bold rounded-lg border border-slate-200">{item.sku}</span>
+                                        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-bold rounded-lg border border-indigo-100 uppercase">{item.category || 'Umum'}</span>
+                                    </div>
+                                </div>
+                                <div className="mt-auto flex items-end justify-between pt-6 border-t border-slate-50">
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Stok Tersedia</p>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className={`text-4xl font-black ${item.currentStock <= item.minStock ? 'text-rose-600' : 'text-slate-900'}`}>{item.currentStock}</span>
+                                            <span className="text-[10px] font-bold text-slate-300 uppercase">{item.unit || 'pcs'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => onAction('updateStock', item)} className="p-4 bg-slate-900 text-white hover:bg-blue-600 rounded-2xl transition-all active:scale-90"><i data-lucide="arrow-right-left" className="w-5 h-5"></i></button>
+                                        <button onClick={async () => { if(confirm("Hapus Barang?")) await ITEMS_PATH.doc(item.id).delete(); }} className="p-4 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-600 hover:text-white transition-all"><i data-lucide="trash-2" className="w-5 h-5"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function AddItemModal({ onDismiss, notify }) {
+            const [data, setData] = useState({ name: '', sku: '', category: CATEGORIES[0], building: BUILDINGS[0], initialStock: 0, minStock: 5, unit: 'pcs' });
+            const [loading, setLoading] = useState(false);
+
+            // Logika: Sembunyikan Chemical Pool jika Menara Samawa dipilih
+            const availableCategories = data.building === "Menara Samawa" 
+                ? CATEGORIES.filter(c => c !== "Chemical Kolam Renang") 
+                : CATEGORIES;
+
+            const submit = async (e) => {
+                e.preventDefault(); setLoading(true);
+                try {
+                    const docRef = await ITEMS_PATH.add({ ...data, currentStock: Number(data.initialStock), minStock: Number(data.minStock), date: new Date().toISOString() });
+                    if (Number(data.initialStock) > 0) {
+                        await TRANS_PATH.add({ itemId: docRef.id, itemName: data.name, building: data.building, type: 'in', amount: Number(data.initialStock), date: new Date().toISOString(), technician: 'SYSTEM', notes: 'STOK AWAL' });
+                    }
+                    notify("Barang Berhasil Ditambah"); onDismiss();
+                } catch (err) { alert(err.message); }
+                setLoading(false);
+            };
+
+            return (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-sm">
+                    <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl modal-animate overflow-hidden">
+                        <div className="p-10 border-b flex justify-between items-center bg-slate-50/50">
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Input Barang Baru</h3>
+                            <button onClick={onDismiss} className="p-2 hover:bg-slate-200 rounded-full transition-all"><i data-lucide="x"></i></button>
+                        </div>
+                        <form onSubmit={submit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scroll">
+                            <div className="grid grid-cols-1 gap-6">
+                                <div><label className="block mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Gedung</label>
+                                <select value={data.building} onChange={e => {
+                                    const b = e.target.value;
+                                    setData({...data, building: b, category: (b === "Menara Samawa" && data.category === "Chemical Kolam Renang") ? "Umum" : data.category});
+                                }} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-600 transition-all">{BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                                
+                                <div><label className="block mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Kategori</label>
+                                <select value={data.category} onChange={e => setData({...data, category: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-600 transition-all">{availableCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+
+                                <div><label className="block mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Nama Barang</label>
+                                <input required type="text" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-600 uppercase" /></div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="block mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">SKU / Kode</label>
+                                    <input required type="text" value={data.sku} onChange={e => setData({...data, sku: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-600 uppercase" /></div>
+                                    <div><label className="block mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Satuan</label>
+                                    <input required type="text" value={data.unit} onChange={e => setData({...data, unit: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-600 uppercase" /></div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="block mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Stok Awal</label>
+                                    <input type="number" value={data.initialStock} onChange={e => setData({...data, initialStock: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-600" /></div>
+                                    <div><label className="block mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Minimum Stok</label>
+                                    <input type="number" value={data.minStock} onChange={e => setData({...data, minStock: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-600" /></div>
+                                </div>
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl hover:bg-blue-700 transition-all uppercase tracking-widest">{loading ? 'Proses...' : 'Simpan Barang'}</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- MAIN APP ---
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [userData, setUserData] = useState(null);
+            const [items, setItems] = useState([]);
+            const [transactions, setTransactions] = useState([]);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [loading, setLoading] = useState(true);
+            const [authView, setAuthView] = useState('login');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [filterBuilding, setFilterBuilding] = useState('All');
+            const [showModal, setShowModal] = useState(null);
+            const [selectedItem, setSelectedItem] = useState(null);
+            const [selectedBuilding, setSelectedBuilding] = useState(null);
+            const [toast, setToast] = useState(null);
+
+            useEffect(() => {
+                const unsubAuth = auth.onAuthStateChanged(async (u) => {
+                    if (u) {
+                        setUser(u);
+                        const userDoc = await USERS_PATH.doc(u.uid).get();
+                        if (userDoc.exists) setUserData(userDoc.data());
+                        ITEMS_PATH.onSnapshot(snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                        TRANS_PATH.orderBy("date", "desc").limit(500).onSnapshot(snap => setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                    } else {
+                        setUser(null);
+                        setUserData(null);
+                    }
+                    setLoading(false);
+                });
+                return unsubAuth;
+            }, []);
+
+            useEffect(() => { if (window.lucide) lucide.createIcons(); }, [user, activeTab, items, showModal, authView]);
+
+            const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+            const filteredItems = useMemo(() => {
+                return (items || []).filter(i => {
+                    const matchSearch = (i.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || (i.sku || "").toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchBuilding = filterBuilding === 'All' || i.building === filterBuilding;
+                    return matchSearch && matchBuilding;
+                });
+            }, [items, searchQuery, filterBuilding]);
+
+            if (loading) return <div className="h-screen flex items-center justify-center bg-white"><div className="spinner"></div></div>;
+
+            if (!user) return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+                    <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md border border-slate-200">
+                        <div className="text-center mb-10">
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase">K-STOCK Login</h2>
+                            <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase mt-2">Nuansa Pondok Kelapa</p>
+                        </div>
+                        {authView === 'login' ? <LoginForm onSwitch={() => setAuthView('register')} /> : <RegisterForm onSwitch={() => setAuthView('login')} notify={notify} />}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="flex min-h-screen">
+                    <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-slate-200 p-8 sticky top-0 h-screen">
+                        <div className="mb-12">
+                            <h1 className="font-black text-blue-700 text-xl tracking-tighter leading-tight uppercase">STOCK BARANG<br/>NUANSA PK</h1>
+                        </div>
+                        <nav className="space-y-2 flex-1">
+                            <NavItem active={activeTab === 'dashboard'} icon="layout-dashboard" label="Beranda" onClick={() => setActiveTab('dashboard')} />
+                            <NavItem active={activeTab === 'inventory'} icon="package" label="Stok Barang" onClick={() => setActiveTab('inventory')} />
+                            <NavItem active={activeTab === 'history'} icon="history" label="Riwayat" onClick={() => setActiveTab('history')} />
+                        </nav>
+                        <button onClick={() => auth.signOut()} className="w-full p-4 bg-slate-50 text-rose-500 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-rose-50 transition-all"><i data-lucide="log-out"></i> Keluar</button>
+                    </aside>
+
+                    <main className="flex-1 p-8 lg:p-12 max-w-7xl mx-auto w-full">
+                        <header className="flex justify-between items-center mb-12">
+                            <div><h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase">{activeTab}</h2><p className="text-slate-400 font-bold mt-1 uppercase tracking-widest text-[10px]">{userData?.jabatan || 'Supervisor'}</p></div>
+                            <button onClick={() => setShowModal('addItem')} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs hover:bg-blue-700 shadow-xl transition-all flex items-center gap-2"><i data-lucide="plus"></i> TAMBAH BARANG</button>
+                        </header>
+
+                        {activeTab === 'dashboard' && <DashboardView items={items} transactions={transactions} onBuildingClick={(b) => { setFilterBuilding(b); setActiveTab('inventory'); }} />}
+                        {activeTab === 'inventory' && <InventoryView items={filteredItems} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterBuilding={filterBuilding} setFilterBuilding={setFilterBuilding} onAction={(type, item) => { setSelectedItem(item); setShowModal(type); }} />}
+                        {activeTab === 'history' && <HistoryView transactions={transactions} />}
+                    </main>
+
+                    {showModal === 'addItem' && <AddItemModal onDismiss={() => setShowModal(null)} notify={notify} />}
+                    {showModal === 'updateStock' && selectedItem && <UpdateStockModal item={selectedItem} user={userData} onDismiss={() => setShowModal(null)} notify={notify} />}
+                    {toast && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-8 py-4 rounded-full font-bold shadow-2xl flex items-center gap-3 animate-bounce"><i data-lucide="check-circle-2" className="text-emerald-400"></i> {toast}</div>}
+                </div>
+            );
+        }
+
+        // Komponen Pendukung yang belum ada di atas
+        function LoginForm({ onSwitch }) {
+            const [data, setData] = useState({ email: '', pass: '' });
+            const submit = async (e) => {
+                e.preventDefault();
+                try { await auth.signInWithEmailAndPassword(data.email, data.pass); } catch (err) { alert("Email/Password Salah"); }
+            };
+            return (
+                <form onSubmit={submit} className="space-y-4">
+                    <input type="email" placeholder="Email" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:border-blue-600 font-bold" />
+                    <input type="password" placeholder="Password" value={data.pass} onChange={e => setData({...data, pass: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:border-blue-600 font-bold" />
+                    <button type="submit" className="w-full p-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">MASUK</button>
+                    <p className="text-center text-xs text-slate-400">Belum punya akun? <span onClick={onSwitch} className="text-blue-600 cursor-pointer">Registrasi</span></p>
+                </form>
+            );
+        }
+
+        function RegisterForm({ onSwitch, notify }) {
+            const [data, setData] = useState({ name: '', email: '', pass: '', jabatan: '' });
+            const submit = async (e) => {
+                e.preventDefault();
+                try {
+                    const res = await auth.createUserWithEmailAndPassword(data.email, data.pass);
+                    await USERS_PATH.doc(res.user.uid).set({ name: data.name, email: data.email, jabatan: data.jabatan, createdAt: new Date().toISOString() });
+                    notify("Berhasil!"); onSwitch();
+                } catch (e) { alert(e.message); }
+            };
+            return (
+                <form onSubmit={submit} className="space-y-4">
+                    <input type="text" placeholder="Nama Lengkap" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" />
+                    <input type="email" placeholder="Email" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" />
+                    <input type="password" placeholder="Password" value={data.pass} onChange={e => setData({...data, pass: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" />
+                    <input type="text" placeholder="Jabatan" value={data.jabatan} onChange={e => setData({...data, jabatan: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" />
+                    <button type="submit" className="w-full p-4 bg-emerald-600 text-white rounded-2xl font-black">DAFTAR</button>
+                </form>
+            );
+        }
+
+        function HistoryView({ transactions }) {
+            return (
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left min-w-[800px]">
+                        <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400"><th className="p-6">Waktu</th><th className="p-6">Barang</th><th className="p-6">Gedung</th><th className="p-6">Tipe</th><th className="p-6">Qty</th><th className="p-6">PIC</th></thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {transactions.map(t => (
+                                <tr key={t.id} className="text-[11px] font-bold">
+                                    <td className="p-6">{new Date(t.date).toLocaleDateString()}</td>
+                                    <td className="p-6 uppercase">{t.itemName}</td>
+                                    <td className="p-6 uppercase">{t.building}</td>
+                                    <td className="p-6 uppercase"><span className={t.type === 'in' ? 'text-emerald-600' : 'text-rose-600'}>{t.type === 'in' ? 'Masuk' : 'Keluar'}</span></td>
+                                    <td className="p-6">{t.amount}</td>
+                                    <td className="p-6 uppercase">{t.technician}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        }
+
+        function UpdateStockModal({ item, user, onDismiss, notify }) {
+            const [data, setData] = useState({ amount: 1, type: 'out', notes: '' });
+            const [loading, setLoading] = useState(false);
+            const submit = async (e) => {
+                e.preventDefault(); setLoading(true);
+                const amt = Number(data.amount);
+                const current = Number(item.currentStock);
+                const final = data.type === 'in' ? current + amt : current - amt;
+                if(data.type === 'out' && current < amt) { alert("Stok kurang!"); setLoading(false); return; }
+                try {
+                    await ITEMS_PATH.doc(item.id).update({ currentStock: final });
+                    await TRANS_PATH.add({ itemId: item.id, itemName: item.name, building: item.building, type: data.type, amount: amt, date: new Date().toISOString(), technician: user?.name || "ADMIN", notes: data.notes });
+                    notify("Berhasil!"); onDismiss();
+                } catch (e) { alert(e.message); }
+                setLoading(false);
+            };
+            return (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className={`p-8 text-white ${data.type === 'in' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                            <h3 className="text-xl font-black uppercase">{data.type === 'in' ? 'Barang Masuk' : 'Barang Keluar'}</h3>
+                        </div>
+                        <form onSubmit={submit} className="p-8 space-y-6">
+                            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                                <button type="button" onClick={() => setData({...data, type: 'out'})} className={`flex-1 py-2 rounded-lg font-bold ${data.type === 'out' ? 'bg-white shadow' : ''}`}>KELUAR</button>
+                                <button type="button" onClick={() => setData({...data, type: 'in'})} className={`flex-1 py-2 rounded-lg font-bold ${data.type === 'in' ? 'bg-white shadow' : ''}`}>MASUK</button>
+                            </div>
+                            <input type="number" min="1" value={data.amount} onChange={e => setData({...data, amount: e.target.value})} className="w-full p-4 text-5xl font-black text-center outline-none" />
+                            <input type="text" placeholder="Catatan" value={data.notes} onChange={e => setData({...data, notes: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-xl" />
+                            <button type="submit" className="w-full p-4 bg-slate-900 text-white rounded-xl font-black uppercase">Konfirmasi</button>
+                            <button type="button" onClick={onDismiss} className="w-full p-4 text-slate-400 font-bold uppercase">Batal</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        setTimeout(() => lucide.createIcons(), 500);
     </script>
 </body>
 </html>
