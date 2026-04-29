@@ -9,6 +9,11 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+# --- TAMBAHAN UNTUK MENGATASI PERINGATAN NODE.JS 20 ---
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+# ------------------------------------------------------
+
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
