@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-STOCK Nuansa Pondok Kelapa - Enterprise Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; color: #0F172A; }
+        .spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        .modal-animate { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .building-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAzYbEMh0n3tXduIeWg5qJbL9-bSyvy6Cg",
+            authDomain: "kartu-stock-nuansapondokkelapa.firebaseapp.com",
+            projectId: "kartu-stock-nuansapondokkelapa",
+            storageBucket: "kartu-stock-nuansapondokkelapa.firebasestorage.app",
+            messagingSenderId: "97966076438",
+            appId: "1:97966076438:web:f98ac6e1d8f101e3037b37"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        const APP_ID = "kartu-stock-nuansapondokkelapa";
+        const ITEMS_PATH = db.collection("artifacts").doc(APP_ID).collection("public").doc("data").collection("items");
+        const TRANS_PATH = db.collection("artifacts").doc(APP_ID).collection("public").doc("data").collection("transactions");
+        const USERS_PATH = db.collection("artifacts").doc(APP_ID).collection("public").doc("data").collection("users");
+
+        const BUILDINGS = ["Menara Swasana", "Menara Samawa", "Galery Marketing"];
+
+        // --- COMPONENTS ---
+
+        function NavItem({ active, icon, label, onClick }) {
+            return (
+                <button onClick={onClick} className={`w-full flex items-center gap-5 px-6 py-5 rounded-2xl transition-all font-black text-sm tracking-tight ${active ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    <i data-lucide={icon} className="w-5 h-5"></i> <span>{label}</span>
+                </button>
+            );
+        }
+
+        function StatCard({ title, value, icon, color, subtitle, highlight }) {
+            return (
+                <div className={`p-12 rounded-[4rem] border transition-all relative overflow-hidden ${highlight ? 'bg-amber-50 border-amber-200 shadow-2xl scale-105' : 'bg-white border-slate-100 shadow-sm'}`}>
+                    <div className="bg-slate-50 p-5 w-fit rounded-3xl mb-10 border border-white shadow-sm"><i data-lucide={icon} className={color}></i></div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mb-3">{title}</p>
+                    <p className="text-6xl font-black text-slate-900 tracking-tighter leading-none">{value}</p>
+                    <p className="text-[10px] text-slate-500 font-extrabold mt-8 uppercase tracking-widest">{subtitle}</p>
+                </div>
+            );
+        }
+
+        function LoginForm({ onSwitch }) {
+            const [data, setData] = useState({ email: '', pass: '' });
+            const submit = async (e) => {
+                e.preventDefault();
+                try { await auth.signInWithEmailAndPassword(data.email, data.pass); } catch (err) { alert("Email atau Password Salah!"); }
+            };
+            return (
+                <form onSubmit={submit} className="space-y-5 uppercase font-black text-[9px] tracking-widest text-slate-400">
+                    <div><label className="block mb-2 ml-4">Email Address</label><input required type="email" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-blue-600 transition-all lowercase" /></div>
+                    <div><label className="block mb-2 ml-4">Password</label><input required type="password" value={data.pass} onChange={e => setData({...data, pass: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-blue-600 transition-all" /></div>
+                    <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-xl hover:bg-blue-700 transition-all mt-4">Authorized Login</button>
+                    <p className="text-center mt-6">Akses Baru? <span onClick={onSwitch} className="text-blue-600 cursor-pointer hover:underline text-[10px]">Registrasi Akun</span></p>
+                </form>
+            );
+        }
+
+        function RegisterForm({ onSwitch, notify }) {
+            const [data, setData] = useState({ name: '', email: '', pass: '', jabatan: '', role: 'TEKNISI' });
+            const submit = async (e) => {
+                e.preventDefault();
+                try {
+                    const res = await auth.createUserWithEmailAndPassword(data.email, data.pass);
+                    await USERS_PATH.doc(res.user.uid).set({ name: data.name, email: data.email, jabatan: data.jabatan, role: data.role, createdAt: new Date().toISOString() });
+                    notify("Berhasil Registrasi. Silakan Login."); onSwitch();
+                } catch (e) { alert(e.message); }
+            };
+            return (
+                <form onSubmit={submit} className="space-y-4 uppercase font-black text-[9px] tracking-widest text-slate-400 max-h-[60vh] overflow-y-auto custom-scroll p-1">
+                    <div><label className="block mb-2 ml-2 text-[10px]">Nama Lengkap</label><input required type="text" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full px-6 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-blue-600" /></div>
+                    <div><label className="block mb-2 ml-2 text-[10px]">Email</label><input required type="email" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full px-6 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-blue-600 lowercase" /></div>
+                    <div><label className="block mb-2 ml-2 text-[10px]">Password</label><input required type="password" value={data.pass} onChange={e => setData({...data, pass: e.target.value})} className="w-full px-6 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-blue-600" /></div>
+                    <div><label className="block mb-2 ml-2 text-[10px]">Jabatan</label><input required type="text" value={data.jabatan} onChange={e => setData({...data, jabatan: e.target.value})} className="w-full px-6 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-bold outline-none focus:border-blue-600" /></div>
+                    <div><label className="block mb-2 ml-2 text-[10px]">Hak Akses</label><select value={data.role} onChange={e => setData({...data, role: e.target.value})} className="w-full px-6 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-black outline-none focus:border-blue-600"><option value="TEKNISI">TEKNISI (Laporan Stok)</option><option value="ADMIN">ADMIN (Hak Penuh)</option></select></div>
+                    <button type="submit" className="w-full py-5 bg-emerald-600 text-white rounded-2xl shadow-xl hover:bg-emerald-700 transition-all mt-4">Kirim Pendaftaran</button>
+                    <p className="text-center mt-6">Sudah punya akun? <span onClick={onSwitch} className="text-blue-600 cursor-pointer hover:underline text-[10px]">Masuk Saja</span></p>
+                </form>
+            );
+        }
+
+        function DashboardView({ items, transactions, onBuildingClick }) {
+            const stats = {
+                total: (items || []).length,
+                low: (items || []).filter(i => (i.currentStock || 0) <= (i.minStock || 5)).length,
+                activity: (transactions || []).filter(t => new Date(t.date).toDateString() === new Date().toDateString()).length
+            };
+            return (
+                <div className="space-y-16">
+                    <div className="space-y-6">
+                        <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3"><i data-lucide="building"></i> Menu Gedung</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {BUILDINGS.map(b => (
+                                <button key={b} onClick={() => onBuildingClick(b)} className="building-card bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center text-center transition-all group">
+                                    <div className="bg-blue-50 p-5 rounded-3xl mb-6 group-hover:bg-blue-600 group-hover:text-white transition-all"><i data-lucide="building-2" className="w-8 h-8"></i></div>
+                                    <h4 className="font-black text-xl text-slate-900 mb-2 uppercase tracking-tight">{b}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Klik untuk Transaksi</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        <StatCard title="Total Suku Cadang" value={stats.total} icon="package" color="text-blue-600" subtitle="Unit terdata" />
+                        <StatCard title="Stok Kritis" value={stats.low} icon="alert-octagon" color="text-amber-500" subtitle="Butuh restock" highlight={stats.low > 0} />
+                        <StatCard title="Update Hari Ini" value={stats.activity} icon="zap" color="text-indigo-600" subtitle="Log harian" />
+                    </div>
+                </div>
+            );
+        }
+
+        function InventoryView({ items, searchQuery, setSearchQuery, filterBuilding, setFilterBuilding, onAction, isAdmin, userData }) {
+            return (
+                <div className="space-y-12">
+                    <div className="flex flex-col lg:flex-row gap-6">
+                        <div className="relative flex-1 group"><i data-lucide="search" className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-all"></i><input type="text" placeholder="Cari Kode atau Nama Suku Cadang..." className="w-full pl-20 pr-10 py-6 bg-white border border-slate-200 rounded-[2.5rem] focus:ring-[12px] focus:ring-blue-100 outline-none font-black text-xl shadow-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
+                        <div className="flex items-center gap-4 bg-white px-10 rounded-[2.5rem] border border-slate-200 shadow-sm"><i data-lucide="filter" className="text-slate-300"></i><select value={filterBuilding} onChange={(e) => setFilterBuilding(e.target.value)} className="bg-transparent border-none outline-none text-sm font-black text-slate-700 py-6 pr-10 cursor-pointer"><option value="All">Semua Gedung</option>{BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                        {(items || []).map(item => (
+                            <div key={item.id} className="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-3 transition-all flex flex-col group relative overflow-hidden">
+                                {(item.currentStock || 0) <= (item.minStock || 5) && <div className="absolute top-10 right-10 bg-rose-500 text-white text-[10px] font-black px-4 py-2 rounded-full animate-pulse shadow-lg uppercase tracking-tighter">Butuh Stok</div>}
+                                <div className="mb-10">
+                                    <div className="text-[10px] font-black uppercase text-blue-600 mb-4 bg-blue-50 px-3 py-1.5 rounded-lg w-fit tracking-widest">{item.building}</div>
+                                    <h3 className="text-3xl font-black text-slate-900 leading-tight group-hover:text-blue-600 transition-colors uppercase tracking-tight">{item.name}</h3>
+                                    <div className="mt-6 flex gap-3"><span className="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl border border-slate-200">{item.sku}</span><span className="px-4 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-xl border border-indigo-100 uppercase">{item.category || 'General'}</span></div>
+                                </div>
+                                <div className="mt-auto flex items-end justify-between pt-8 border-t border-slate-50">
+                                    <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Inventory</p><div className="flex items-baseline gap-2"><span className={`text-6xl font-black tracking-tighter ${(item.currentStock || 0) <= (item.minStock || 5) ? 'text-rose-600' : 'text-slate-900'}`}>{item.currentStock || 0}</span><span className="text-sm font-black text-slate-300 uppercase">{item.unit || 'pcs'}</span></div></div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => onAction('updateStock', item)} className="p-5 bg-slate-900 text-white hover:bg-blue-600 rounded-[1.5rem] transition-all shadow-xl active:scale-90"><i data-lucide="arrow-right-left"></i></button>
+                                        <button onClick={async () => { if(confirm("Hapus Barang Permanen?")) await ITEMS_PATH.doc(item.id).delete(); }} className="p-5 bg-rose-50 text-rose-500 rounded-[1.5rem] hover:bg-rose-600 hover:text-white transition-all"><i data-lucide="trash-2"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function HistoryView({ transactions }) {
+            return (
+                <div className="bg-white rounded-[4rem] border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[1000px]">
+                        <thead><tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]"><th className="p-10">Waktu & Tanggal</th><th className="p-10">Area Unit</th><th className="p-10">Nama Barang</th><th className="p-10">Status Transaksi</th><th className="p-10 text-center">Qty</th><th className="p-10">Teknisi Pelaksana</th></tr></thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {(transactions || []).map(t => (
+                                <tr key={t.id} className="hover:bg-slate-50/50 transition-all group">
+                                    <td className="p-10 whitespace-nowrap font-black text-slate-900 text-sm">{new Date(t.date).toLocaleDateString('id-ID')}<p className="text-[10px] text-slate-400 font-bold uppercase mt-2">{new Date(t.date).toLocaleTimeString()} WIB</p></td>
+                                    <td className="p-10 whitespace-nowrap"><span className="text-[10px] font-black text-blue-600 px-4 py-2 bg-blue-50 rounded-xl uppercase tracking-tighter border border-blue-100">{t.building}</span></td>
+                                    <td className="p-10"><div className="font-black text-slate-900 text-lg tracking-tight uppercase">{t.itemName}</div><div className="text-[10px] text-slate-400 font-bold italic mt-2 uppercase tracking-widest opacity-60">{t.notes || 'REGULAR UPDATE'}</div></td>
+                                    <td className="p-10 whitespace-nowrap"><span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${t.type === 'in' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}><i data-lucide={t.type === 'in' ? "trending-up" : "trending-down"} className="w-4 h-4"></i> {t.type === 'in' ? 'Barang Masuk' : 'Barang Keluar'}</span></td>
+                                    <td className="p-10 font-black text-slate-900 text-center text-4xl tracking-tighter">{t.amount}</td>
+                                    <td className="p-10"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-400 text-[10px] uppercase tracking-tighter">{t.technician?.[0]}</div><span className="font-black text-slate-700 text-xs uppercase tracking-tight">{t.technician}</span></div></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        }
+
+        function UsersView({ users, currentUser, notify }) {
+            const handleDelete = async (uid) => {
+                if(uid === currentUser.uid) return alert("Anda tidak bisa menghapus diri sendiri!");
+                if(confirm("Hapus pengguna ini dari sistem cloud?")) {
+                    await USERS_PATH.doc(uid).delete();
+                    notify("Pengguna Berhasil Dihapus");
+                }
+            };
+            return (
+                <div className="bg-white rounded-[4rem] border border-slate-100 shadow-sm overflow-hidden">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest"><th className="p-10">Nama Lengkap</th><th className="p-10">Email System</th><th className="p-10">Jabatan</th><th className="p-10">Akses</th><th className="p-10">Tindakan</th></thead>
+                        <tbody className="divide-y divide-slate-50 font-black uppercase text-[11px] tracking-tight">
+                            {(users || []).map(u => (
+                                <tr key={u.id} className="hover:bg-slate-50 transition-all">
+                                    <td className="p-10 text-slate-900">{u.name}</td><td className="p-10 text-slate-400 font-bold lowercase tracking-tighter">{u.email}</td><td className="p-10 text-slate-500">{u.jabatan}</td>
+                                    <td className="p-10"><span className={`px-4 py-2 rounded-xl border ${u.role === 'ADMIN' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-400 border-slate-100 shadow-sm'}`}>{u.role}</span></td>
+                                    <td className="p-10"><button onClick={() => handleDelete(u.id)} className="p-4 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-600 hover:text-white transition-all"><i data-lucide="user-minus" className="w-4 h-4"></i></button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        }
+
+        function AddItemModal({ onDismiss, notify }) {
+            const [data, setData] = useState({ name: '', sku: '', category: '', building: BUILDINGS[0], initialStock: 0, minStock: 5, unit: 'pcs' });
+            const [loading, setLoading] = useState(false);
+            const submit = async (e) => {
+                e.preventDefault(); setLoading(true);
+                try {
+                    const docRef = await ITEMS_PATH.add({ ...data, currentStock: Number(data.initialStock), minStock: Number(data.minStock), date: new Date().toISOString() });
+                    if (Number(data.initialStock) > 0) await TRANS_PATH.add({ itemId: docRef.id, itemName: data.name, building: data.building, type: 'in', amount: Number(data.initialStock), date: new Date().toISOString(), technician: 'SYSTEM', notes: 'STOK AWAL SISTEM' });
+                    notify("Barang Berhasil Didata"); onDismiss();
+                } catch (err) { alert(err.message); }
+                setLoading(false);
+            };
+            return (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
+                    <div className="bg-white rounded-[4rem] w-full max-w-2xl shadow-[0_50px_100px_rgba(0,0,0,0.3)] modal-animate overflow-hidden border border-white/20">
+                        <div className="p-12 border-b flex justify-between items-center bg-slate-50/50">
+                            <div><h3 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Barang Baru</h3><p className="text-[10px] text-slate-400 font-black mt-2 tracking-[0.3em]">MANAJEMEN INVENTARIS CLOUD</p></div>
+                            <button onClick={onDismiss} className="p-4 hover:bg-slate-200 rounded-full transition-all"><i data-lucide="x" className="w-8 h-8"></i></button>
+                        </div>
+                        <form onSubmit={submit} className="p-12 space-y-10 max-h-[75vh] overflow-y-auto custom-scroll">
+                            <div className="grid grid-cols-2 gap-8 uppercase font-black text-[10px] tracking-widest text-slate-400">
+                                <div className="col-span-2"><label className="block mb-4 ml-4">Gedung Penempatan</label><select value={data.building} onChange={e => setData({...data, building: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 font-black outline-none focus:border-blue-600 transition-all text-lg">{BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                                <div className="col-span-2"><label className="block mb-4 ml-4">Nama Barang Lengkap</label><input required type="text" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 font-black outline-none focus:border-blue-600 text-lg uppercase" /></div>
+                                <div><label className="block mb-4 ml-4">Kode SKU</label><input required type="text" value={data.sku} onChange={e => setData({...data, sku: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 font-black outline-none focus:border-blue-600 text-lg uppercase" /></div>
+                                <div><label className="block mb-4 ml-4">Unit (pcs/box)</label><input required type="text" value={data.unit} onChange={e => setData({...data, unit: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 font-black outline-none focus:border-blue-600 text-lg uppercase" /></div>
+                                <div><label className="block mb-4 ml-4">Stok Saat Ini</label><input type="number" value={data.initialStock} onChange={e => setData({...data, initialStock: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 font-black outline-none focus:border-blue-600 text-lg text-center" /></div>
+                                <div><label className="block mb-4 ml-4">Min Stok Aman</label><input type="number" value={data.minStock} onChange={e => setData({...data, minStock: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 font-black outline-none focus:border-blue-600 text-lg text-center" /></div>
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full py-8 bg-blue-600 text-white font-black rounded-[2.5rem] shadow-2xl hover:bg-blue-700 transition-all uppercase tracking-[0.2em] text-lg">SIMPAN DATABASE</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function UpdateStockModal({ item, user, onDismiss, notify }) {
+            const [data, setData] = useState({ amount: 1, type: 'out', notes: '' });
+            const [loading, setLoading] = useState(false);
+            const submit = async (e) => {
+                e.preventDefault(); setLoading(true);
+                const amount = Number(data.amount);
+                const currentStock = Number(item.currentStock || 0);
+                const newStock = data.type === 'in' ? currentStock + amount : currentStock - amount;
+
+                if (data.type === 'out' && currentStock < amount) {
+                    alert("EROR: STOK TIDAK CUKUP!");
+                    setLoading(false);
+                    return;
+                }
+                try {
+                    await ITEMS_PATH.doc(item.id).update({ currentStock: newStock });
+                    await TRANS_PATH.add({
+                        itemId: item.id,
+                        itemName: item.name,
+                        building: item.building,
+                        type: data.type,
+                        amount: amount,
+                        date: new Date().toISOString(),
+                        technician: (user?.name || "ANON").toUpperCase(),
+                        notes: data.notes.toUpperCase()
+                    });
+                    notify("Stok Berhasil Diupdate"); onDismiss();
+                } catch (err) { alert(err.message); }
+                setLoading(false);
+            };
+            return (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
+                    <div className="bg-white rounded-[4rem] w-full max-w-xl shadow-2xl modal-animate overflow-hidden">
+                        <div className={`p-12 flex justify-between items-center text-white ${data.type === 'in' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                            <div><h3 className="text-4xl font-black uppercase tracking-tighter">{data.type === 'in' ? 'Barang Masuk' : 'Barang Keluar'}</h3><p className="text-[10px] font-black uppercase mt-2 opacity-80 tracking-widest">{item.name}</p></div>
+                            <button onClick={onDismiss} className="p-4 hover:bg-white/10 rounded-full transition-all"><i data-lucide="x" className="w-8 h-8"></i></button>
+                        </div>
+                        <form onSubmit={submit} className="p-12 space-y-12 font-black uppercase tracking-widest text-[9px] text-slate-400">
+                            <div className="flex gap-4 p-2 bg-slate-100 rounded-[2rem] border-2 border-slate-200">
+                                <button type="button" onClick={() => setData({...data, type: 'out'})} className={`flex-1 py-5 rounded-[1.5rem] transition-all ${data.type === 'out' ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-400'}`}>PENGAMBILAN</button>
+                                <button type="button" onClick={() => setData({...data, type: 'in'})} className={`flex-1 py-5 rounded-[1.5rem] transition-all ${data.type === 'in' ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400'}`}>PENERIMAAN</button>
+                            </div>
+                            <div className="text-center"><label className="block mb-6 tracking-[0.5em]">JUMLAH ({item.unit || 'pcs'})</label><input required type="number" min="1" value={data.amount} onChange={e => setData({...data, amount: e.target.value})} className={`w-full text-9xl font-black text-center bg-transparent outline-none transition-all ${data.type === 'in' ? 'focus:text-emerald-600' : 'focus:text-rose-600'}`} /></div>
+                            <div><label className="block mb-4 ml-6">Keperluan Pemakaian / Catatan</label><textarea required value={data.notes} onChange={e => setData({...data, notes: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 font-black outline-none focus:border-slate-900 transition-all text-center uppercase" rows="2"></textarea></div>
+                            <button type="submit" disabled={loading} className={`w-full py-8 text-white font-black rounded-[2.5rem] shadow-2xl transition-all active:scale-95 text-lg ${data.type === 'in' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-rose-600 hover:bg-rose-700 shadow-rose-200'}`}>{loading ? 'PROCESSING...' : 'KONFIRMASI SEKARANG'}</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function BuildingActionModal({ building, items, user, onDismiss, notify }) {
+            const [selectedItemId, setSelectedItem] = useState("");
+            const [data, setData] = useState({ amount: 1, type: 'out', notes: '' });
+            const [loading, setLoading] = useState(false);
+            const buildingItems = (items || []).filter(i => i.building === building);
+
+            const submit = async (e) => {
+                e.preventDefault();
+                if (!selectedItemId) return alert("Pilih barang terlebih dahulu!");
+                setLoading(true);
+                const currentItem = items.find(i => i.id === selectedItemId);
+                const amount = Number(data.amount);
+                const currentStock = Number(currentItem.currentStock || 0);
+                const newStock = data.type === 'in' ? currentStock + amount : currentStock - amount;
+
+                if (data.type === 'out' && currentStock < amount) { alert("EROR: STOK TIDAK CUKUP!"); setLoading(false); return; }
+                try {
+                    await ITEMS_PATH.doc(selectedItemId).update({ currentStock: newStock });
+                    await TRANS_PATH.add({
+                        itemId: selectedItemId,
+                        itemName: currentItem.name,
+                        building: building,
+                        type: data.type,
+                        amount: amount,
+                        date: new Date().toISOString(),
+                        technician: (user?.name || "ANON").toUpperCase(),
+                        notes: data.notes.toUpperCase()
+                    });
+                    notify("Transaksi Gedung Berhasil"); onDismiss();
+                } catch (err) { alert(err.message); }
+                setLoading(false);
+            };
+
+            return (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
+                    <div className="bg-white rounded-[4rem] w-full max-w-2xl shadow-2xl modal-animate overflow-hidden">
+                        <div className="p-12 bg-blue-600 text-white flex justify-between items-center">
+                            <div><h3 className="text-3xl font-black uppercase tracking-tighter">{building}</h3><p className="text-[10px] font-black uppercase tracking-widest opacity-80 mt-1">Form Transaksi Cepat</p></div>
+                            <button onClick={onDismiss} className="p-4 hover:bg-white/10 rounded-full transition-all"><i data-lucide="x" className="w-8 h-8"></i></button>
+                        </div>
+                        <form onSubmit={submit} className="p-12 space-y-8 uppercase font-black tracking-widest text-[9px] text-slate-400">
+                            <div>
+                                <label className="block mb-4 ml-4 uppercase text-[10px]">1. Pilih Barang dari {building}</label>
+                                <select required value={selectedItemId} onChange={e => setSelectedItem(e.target.value)} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 text-lg outline-none focus:border-blue-600">
+                                    <option value="">-- PILIH BARANG --</option>
+                                    {buildingItems.map(i => <option key={i.id} value={i.id}>{i.name} (STOK: {i.currentStock} {i.unit})</option>)}
+                                </select>
+                            </div>
+                            <div className="flex gap-4 p-2 bg-slate-100 rounded-[2rem] border-2 border-slate-200">
+                                <button type="button" onClick={() => setData({...data, type: 'out'})} className={`flex-1 py-5 rounded-[1.5rem] transition-all ${data.type === 'out' ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-400'}`}>PENGAMBILAN</button>
+                                <button type="button" onClick={() => setData({...data, type: 'in'})} className={`flex-1 py-5 rounded-[1.5rem] transition-all ${data.type === 'in' ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400'}`}>PENERIMAAN</button>
+                            </div>
+                            <div className="text-center">
+                                <label className="block mb-4 tracking-[0.5em] text-[10px]">2. JUMLAH KUANTITAS</label>
+                                <input required type="number" min="1" value={data.amount} onChange={e => setData({...data, amount: e.target.value})} className={`w-full text-7xl text-center bg-transparent outline-none transition-all ${data.type === 'in' ? 'focus:text-emerald-600' : 'focus:text-rose-600'}`} />
+                            </div>
+                            <div>
+                                <label className="block mb-4 ml-4 text-[10px]">3. Keperluan Pemakaian</label>
+                                <textarea required value={data.notes} onChange={e => setData({...data, notes: e.target.value})} className="w-full px-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-slate-900 outline-none focus:border-blue-600 transition-all text-center uppercase" rows="2" placeholder="CONTOH: PERBAIKAN AC LANTAI 2"></textarea>
+                            </div>
+                            <button type="submit" disabled={loading} className={`w-full py-8 text-white font-black rounded-[2.5rem] shadow-2xl transition-all active:scale-95 text-lg ${data.type === 'in' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-rose-600 hover:bg-rose-700 shadow-rose-200'}`}>
+                                {loading ? 'PROCESSING...' : 'KONFIRMASI TRANSAKSI'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- MAIN APP ---
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [userData, setUserData] = useState(null);
+            const [items, setItems] = useState([]);
+            const [transactions, setTransactions] = useState([]);
+            const [allUsers, setAllUsers] = useState([]);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [loading, setLoading] = useState(true);
+            const [authView, setAuthView] = useState('login');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [filterBuilding, setFilterBuilding] = useState('All');
+            const [showModal, setShowModal] = useState(null);
+            const [selectedItem, setSelectedItem] = useState(null);
+            const [selectedBuilding, setSelectedBuilding] = useState(null);
+            const [toast, setToast] = useState(null);
+            const [customLogo, setCustomLogo] = useState(localStorage.getItem('custom_logo') || null);
+
+            useEffect(() => {
+                const unsubAuth = auth.onAuthStateChanged(async (u) => {
+                    if (u) {
+                        setUser(u);
+                        const userDoc = await USERS_PATH.doc(u.uid).get();
+                        if (userDoc.exists) setUserData(userDoc.data());
+                        ITEMS_PATH.onSnapshot(snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                        TRANS_PATH.orderBy("date", "desc").limit(1000).onSnapshot(snap => setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                        USERS_PATH.onSnapshot(snap => setAllUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                    } else {
+                        setUser(null);
+                        setUserData(null);
+                    }
+                    setLoading(false);
+                });
+                return unsubAuth;
+            }, []);
+
+            useEffect(() => { lucide.createIcons(); }, [user, activeTab, items, transactions, userData, showModal, selectedBuilding, customLogo]);
+
+            const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+            const handleLogoUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result;
+                        setCustomLogo(base64);
+                        localStorage.setItem('custom_logo', base64);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const prepareExportData = () => {
+                // Urutkan dari yang terlama untuk hitung saldo berjalan per barang
+                const sortedByDate = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const itemBalances = {};
+
+                return sortedByDate.map((t, index) => {
+                    const id = t.itemId;
+                    if(!itemBalances[id]) itemBalances[id] = 0;
+
+                    const isMasuk = t.type === 'in';
+                    const qty = Number(t.amount || 0);
+                    itemBalances[id] += isMasuk ? qty : -qty;
+
+                    return {
+                        originalIndex: index,
+                        nama: t.itemName,
+                        tglMasuk: isMasuk ? new Date(t.date).toLocaleDateString('id-ID') : "-",
+                        qtyMasuk: isMasuk ? qty : 0,
+                        tglKeluar: !isMasuk ? new Date(t.date).toLocaleDateString('id-ID') : "-",
+                        qtyKeluar: !isMasuk ? qty : 0,
+                        sisa: itemBalances[id],
+                        pengambil: t.technician,
+                        keterangan: `${t.building} - ${t.notes || 'Update Stok'}`
+                    };
+                });
+            };
+
+            const handleExportExcel = () => {
+                const data = prepareExportData();
+                const headers = ["No", "Nama Barang", "Tanggal Masuk", "Quantity Masuk", "Tanggal Keluar", "Quantity Keluar", "Sisa Barang (Quantity)", "Nama Pengambil", "Keterangan Pemakaian"];
+
+                // No 1 di paling atas file
+                const rows = data.map((d, i) => [
+                    i + 1,
+                    `"${d.nama}"`,
+                    d.tglMasuk,
+                    d.qtyMasuk,
+                    d.tglKeluar,
+                    d.qtyKeluar,
+                    d.sisa,
+                    `"${d.pengambil}"`,
+                    `"${d.keterangan}"`
+                ]);
+
+                const csvContent = "\uFEFF" + [headers, ...rows].map(e => e.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.setAttribute("href", URL.createObjectURL(blob));
+                link.setAttribute("download", `REKAP_STOK_FINAL_${new Date().getTime()}.csv`);
+                link.click();
+                notify("Excel Berhasil Diunduh");
+            };
+
+            const handleExportPDF = () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('landscape');
+
+                // Filter data berdasarkan gedung yang aktif di filter
+                const filteredTransactions = transactions.filter(t =>
+                    filterBuilding === 'All' || t.building === filterBuilding
+                );
+
+                const sortedByDate = [...filteredTransactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const itemBalances = {};
+
+                const data = sortedByDate.map((t, index) => {
+                    const id = t.itemId;
+                    if(!itemBalances[id]) itemBalances[id] = 0;
+                    const isMasuk = t.type === 'in';
+                    const qty = Number(t.amount || 0);
+                    itemBalances[id] += isMasuk ? qty : -qty;
+
+                    return [
+                        index + 1,
+                        t.itemName,
+                        isMasuk ? new Date(t.date).toLocaleDateString('id-ID') : "-",
+                        isMasuk ? qty : 0,
+                        !isMasuk ? new Date(t.date).toLocaleDateString('id-ID') : "-",
+                        !isMasuk ? qty : 0,
+                        itemBalances[id],
+                        t.technician,
+                        `${t.building} - ${t.notes || 'Update Stok'}`
+                    ];
+                });
+
+                const now = new Date();
+                const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                const buildingTitle = filterBuilding === 'All' ? 'SEMUA GEDUNG' : filterBuilding.toUpperCase();
+
+                doc.setFontSize(18);
+                doc.text("REKAPITULASI STOK BARANG", 14, 15);
+
+                doc.setFontSize(11);
+                doc.text(`GEDUNG: ${buildingTitle}`, 14, 23);
+                doc.text(`PERIODE: ${monthNames[now.getMonth()]} ${now.getFullYear()}`, 14, 29);
+                doc.text(`TANGGAL UPDATE: ${now.toLocaleDateString('id-ID')}`, 14, 35);
+
+                doc.setFontSize(9);
+                doc.text(`Petugas: ${userData?.name}`, 240, 35, { align: 'right' });
+
+                doc.autoTable({
+                    startY: 42,
+                    head: [["No", "Nama Barang", "Tgl Masuk", "Qty In", "Tgl Keluar", "Qty Out", "Sisa", "Pengambil", "Keterangan"]],
+                    body: data,
+                    theme: 'grid',
+                    headStyles: { fillColor: [30, 41, 59], fontSize: 8 },
+                    styles: { fontSize: 7, cellPadding: 2 },
+                    columnStyles: { 0: { cellWidth: 10 }, 8: { cellWidth: 60 } }
+                });
+
+                doc.save(`REKAP_STOK_${buildingTitle.replace(/\s+/g, '_')}_${now.getTime()}.pdf`);
+                notify("PDF Berhasil Dibuat");
+            };
+
+            const filteredItems = useMemo(() => {
+                return (items || []).filter(i => {
+                    const matchSearch = (i.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || (i.sku || "").toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchBuilding = filterBuilding === 'All' || i.building === filterBuilding;
+                    return matchSearch && matchBuilding;
+                });
+            }, [items, searchQuery, filterBuilding]);
+
+            if (loading) return <div className="h-screen flex items-center justify-center bg-white"><div className="spinner"></div></div>;
+
+            if (!user) return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+                    <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md modal-animate border border-slate-200">
+                        <div className="text-center mb-10">
+                            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 overflow-hidden relative group cursor-pointer ${!customLogo ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : ''}`} onClick={() => document.getElementById('logo-input').click()}>
+                                {customLogo ? <img src={customLogo} className="w-full h-full object-contain" style={{ mixBlendMode: 'multiply' }} /> : <i data-lucide="shield-check" className="w-10 h-10"></i>}
+                                <input id="logo-input" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-2xl"><i data-lucide="camera" className="w-5 h-5 text-white"></i></div>
+                            </div>
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Enterprise Auth</h2>
+                            <p className="text-slate-400 font-bold text-[10px] tracking-[0.3em] uppercase mt-2">STOCK BARANG NUANSA PK</p>
+                        </div>
+                        {authView === 'login' ? <LoginForm onSwitch={() => setAuthView('register')} /> : <RegisterForm onSwitch={() => setAuthView('login')} notify={notify} />}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="flex min-h-screen">
+                    <aside className="hidden lg:flex flex-col w-80 bg-white border-r border-slate-200 p-10 sticky top-0 h-screen shadow-sm">
+                        <div className="flex items-center gap-4 mb-14">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden relative group cursor-pointer ${!customLogo ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : ''}`} onClick={() => document.getElementById('logo-sidebar').click()}>
+                                {customLogo ? <img src={customLogo} className="w-full h-full object-contain" style={{ mixBlendMode: 'multiply' }} /> : <i data-lucide="layout-grid" className="w-6 h-6"></i>}
+                                <input id="logo-sidebar" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-2xl"><i data-lucide="camera" className="w-4 h-4 text-white"></i></div>
+                            </div>
+                            <div><h1 className="font-black text-slate-900 text-lg tracking-tighter leading-tight uppercase">STOCK BARANG<br/>NUANSA PK</h1><p className="text-[10px] text-slate-400 font-black tracking-widest uppercase">{userData?.role}</p></div>
+                        </div>
+                        <nav className="space-y-2 flex-1">
+                            <NavItem active={activeTab === 'dashboard'} icon="layout-dashboard" label="Dashboard" onClick={() => setActiveTab('dashboard')} />
+                            <NavItem active={activeTab === 'inventory'} icon="package" label="Inventaris" onClick={() => setActiveTab('inventory')} />
+                            <NavItem active={activeTab === 'history'} icon="history" label="Riwayat Audit" onClick={() => setActiveTab('history')} />
+                            {userData?.role === 'ADMIN' && <NavItem active={activeTab === 'users'} icon="users" label="Kelola Pengguna" onClick={() => setActiveTab('users')} />}
+                        </nav>
+                        <div className="space-y-2 mb-6 uppercase font-black text-[9px] tracking-widest text-slate-400">
+                            <p className="ml-2 mb-2">Cetak Laporan</p>
+                            <button onClick={handleExportExcel} className="w-full py-4 bg-slate-900 text-white rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-blue-600 transition-all"><i data-lucide="file-spreadsheet" className="w-4 h-4"></i> Excel (CSV)</button>
+                            <button onClick={handleExportPDF} className="w-full py-4 bg-rose-600 text-white rounded-2xl flex items-center justify-center gap-2 shadow-xl hover:bg-rose-700 transition-all"><i data-lucide="file-text" className="w-4 h-4"></i> Dokumen PDF</button>
+                        </div>
+                        <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-between">
+                            <div className="truncate pr-2 uppercase font-black">
+                                <p className="text-[10px] text-blue-600 truncate">{userData?.name}</p>
+                                <p className="text-[8px] text-slate-400 truncate lowercase tracking-tighter">{userData?.email}</p>
+                            </div>
+                            <button onClick={() => auth.signOut()} className="p-2 bg-white text-rose-500 rounded-lg hover:bg-rose-50 shadow-sm"><i data-lucide="log-out" className="w-4 h-4"></i></button>
+                        </div>
+                    </aside>
+
+                    <main className="flex-1 p-6 lg:p-16 max-w-7xl mx-auto w-full">
+                        <header className="flex justify-between items-center mb-16">
+                            <div><h2 className="text-5xl font-black text-slate-900 tracking-tighter capitalize">{activeTab}</h2><p className="text-slate-400 font-bold mt-2 uppercase tracking-widest italic">{userData?.jabatan}</p></div>
+                            <button onClick={() => setShowModal('addItem')} className="px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-sm hover:bg-blue-700 shadow-2xl active:scale-95 flex items-center gap-3"><i data-lucide="plus"></i> TAMBAH BARANG</button>
+                        </header>
+
+                        {activeTab === 'dashboard' && <DashboardView items={items} transactions={transactions} onBuildingClick={(b) => setSelectedBuilding(b)} />}
+                        {activeTab === 'inventory' && <InventoryView items={filteredItems} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterBuilding={filterBuilding} setFilterBuilding={setFilterBuilding} onAction={(type, item) => { setSelectedItem(item); setShowModal(type); }} isAdmin={userData?.role === 'ADMIN'} />}
+                        {activeTab === 'history' && <HistoryView transactions={transactions} />}
+                        {activeTab === 'users' && <UsersView users={allUsers} currentUser={user} notify={notify} />}
+                    </main>
+
+                    {showModal === 'addItem' && <AddItemModal onDismiss={() => setShowModal(null)} notify={notify} />}
+                    {showModal === 'updateStock' && selectedItem && <UpdateStockModal item={selectedItem} user={userData} onDismiss={() => setShowModal(null)} notify={notify} />}
+                    {selectedBuilding && <BuildingActionModal building={selectedBuilding} items={items} user={userData} onDismiss={() => setSelectedBuilding(null)} notify={notify} />}
+                    {toast && <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl flex items-center gap-4 animate-bounce"><i data-lucide="check-circle-2" className="text-emerald-400"></i> {toast}</div>}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
